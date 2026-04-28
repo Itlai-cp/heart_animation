@@ -2,18 +2,18 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>晚上星月争辉，美梦陪你入睡</title>
     <style>
         body {
             margin: 0;
             padding: 0;
-            background: black;
+            background-color: black;
+            overflow: hidden;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
-            overflow: hidden;
         }
         canvas {
             display: block;
@@ -23,146 +23,158 @@
 <body>
     <canvas id="heartCanvas"></canvas>
     <script>
-        const canvas = document.getElementById('heartCanvas');
-        const ctx = canvas.getContext('2d');
-        
-        // 自适应画布大小
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-        resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
-
-        const HEART_COLOR = '#FF1744';
-        let frame = 0;
-
-        // 爱心函数
-        function heartFunction(t, scale = 12) {
-            const x = 17 * Math.pow(Math.sin(t), 3);
-            const y = -(16 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
-            return {
-                x: x * scale + canvas.width / 2,
-                y: y * scale + canvas.height / 2
-            };
-        }
-
-        // 曲线函数
-        function curve(p) {
-            return 2 * Math.sin(1.5* p) / (2 * Math.PI);
-        }
-
-        // 预生成爱心点集
-        class Heart {
-            constructor() {
-                this.points = []; // 主轮廓点
-                this.edgePoints = []; // 边缘扩散点
-                this.centerPoints = []; // 中心扩散点
-                this.build();
+        (function() {
+            const canvas = document.getElementById('heartCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // ==========================================
+            // 🔧 在这里修改动画速度：数字越小越慢，推荐 0.5 ~ 2.0
+            // ==========================================
+            const SPEED = 0.5;
+            
+            function resizeCanvas() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
             }
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
 
-            scatter(x, y, beta) {
-                const ratioX = -beta * Math.log(Math.random());
-                const ratioY = -beta * Math.log(Math.random());
+            const HEART_COLOR = '#FF1744';
+            let frame = 0;
+
+            function heartFunction(t, scale = 12) {
+                const x = 17 * Math.pow(Math.sin(t), 3);
+                const y = -(16 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
                 return {
-                    x: x - ratioX * (x - canvas.width / 2),
-                    y: y - ratioY * (y - canvas.height / 2)
+                    x: x * scale + canvas.width / 2,
+                    y: y * scale + canvas.height / 2
                 };
             }
 
-            build() {
-                // 生成主轮廓
-                for (let i = 0; i < 2000; i++) {
-                    const t = Math.random() * 2 * Math.PI;
-                    const pos = heartFunction(t);
-                    this.points.push(pos);
+            function curve(p) {
+                return 2 * Math.sin(4 * p) / (2 * Math.PI);
+            }
+
+            class Heart {
+                constructor() {
+                    this.points = [];
+                    this.edgePoints = [];
+                    this.centerPoints = [];
+                    this.cx = canvas.width / 2;
+                    this.cy = canvas.height / 2;
+                    this.build();
+                    window.addEventListener('resize', () => {
+                        this.cx = canvas.width / 2;
+                        this.cy = canvas.height / 2;
+                    });
                 }
 
-                // 边缘扩散
-                for (let pt of this.points) {
-                    for (let i = 0; i < 3; i++) {
-                        this.edgePoints.push(this.scatter(pt.x, pt.y, 0.05));
+                scatter(x, y, beta) {
+                    const ratioX = -beta * Math.log(Math.random());
+                    const ratioY = -beta * Math.log(Math.random());
+                    return {
+                        x: x - ratioX * (x - this.cx),
+                        y: y - ratioY * (y - this.cy)
+                    };
+                }
+
+                build() {
+                    this.points = [];
+                    this.edgePoints = [];
+                    this.centerPoints = [];
+                    // 生成主轮廓
+                    for (let i = 0; i < 2000; i++) {
+                        const t = Math.random() * 2 * Math.PI;
+                        const pos = heartFunction(t);
+                        this.points.push(pos);
+                    }
+                    // 边缘扩散
+                    for (let pt of this.points) {
+                        for (let i = 0; i < 3; i++) {
+                            this.edgePoints.push(this.scatter(pt.x, pt.y, 0.05));
+                        }
+                    }
+                    // 中心扩散
+                    for (let i = 0; i < 10000; i++) {
+                        const pt = this.points[Math.floor(Math.random() * this.points.length)];
+                        this.centerPoints.push(this.scatter(pt.x, pt.y, 0.27));
                     }
                 }
 
-                // 中心扩散
-                for (let i = 0; i < 10000; i++) {
-                    const pt = this.points[Math.floor(Math.random() * this.points.length)];
-                    this.centerPoints.push(this.scatter(pt.x, pt.y, 0.27));
+                calcPosition(x, y, ratio) {
+                    const dist = Math.sqrt(Math.pow(x - this.cx, 2) + Math.pow(y - this.cy, 2));
+                    const force = 1 / Math.pow(dist, 0.42);
+                    const dx = ratio * force * (x - this.cx) + (Math.random() - 0.5) * 2;
+                    const dy = ratio * force * (y - this.cy) + (Math.random() - 0.5) * 2;
+                    return { x: x - dx, y: y - dy };
+                }
+
+                render(ctx, currentFrame) {
+                    const ratio = 15 * curve(currentFrame / 10 * Math.PI);
+                    const haloRadius = 4 + 6 * (1 + curve(currentFrame / 10 * Math.PI));
+                    const haloNumber = Math.floor(3000 + 4000 * Math.pow(Math.abs(curve(currentFrame / 10 * Math.PI)), 2));
+
+                    // 光环
+                    ctx.fillStyle = HEART_COLOR;
+                    ctx.globalAlpha = 0.3;
+                    for (let i = 0; i < haloNumber; i++) {
+                        const t = Math.random() * 2 * Math.PI;
+                        const pos = heartFunction(t, -15);
+                        const dist = Math.sqrt(Math.pow(pos.x - this.cx, 2) + Math.pow(pos.y - this.cy, 2));
+                        const force = -1 / Math.pow(dist, 0.6);
+                        const dx = haloRadius * force * (pos.x - this.cx);
+                        const dy = haloRadius * force * (pos.y - this.cy);
+                        const x = pos.x - dx + (Math.random() - 0.5) * 120;
+                        const y = pos.y - dy + (Math.random() - 0.5) * 120;
+                        const size = Math.random() < 0.7 ? 1 : 2;
+                        ctx.fillRect(x, y, size, size);
+                    }
+
+                    // 主轮廓
+                    ctx.globalAlpha = 1;
+                    for (let pt of this.points) {
+                        const pos = this.calcPosition(pt.x, pt.y, ratio);
+                        const size = Math.floor(Math.random() * 3) + 1;
+                        ctx.fillRect(pos.x, pos.y, size, size);
+                    }
+
+                    // 边缘
+                    ctx.globalAlpha = 0.8;
+                    for (let pt of this.edgePoints) {
+                        const pos = this.calcPosition(pt.x, pt.y, ratio);
+                        const size = Math.floor(Math.random() * 2) + 1;
+                        ctx.fillRect(pos.x, pos.y, size, size);
+                    }
+
+                    // 中心
+                    ctx.globalAlpha = 0.9;
+                    for (let pt of this.centerPoints) {
+                        const pos = this.calcPosition(pt.x, pt.y, ratio);
+                        const size = Math.floor(Math.random() * 2) + 1;
+                        ctx.fillRect(pos.x, pos.y, size, size);
+                    }
+                    ctx.globalAlpha = 1;
                 }
             }
 
-            calcPosition(x, y, ratio) {
-                const cx = canvas.width / 2;
-                const cy = canvas.height / 2;
-                const dist = Math.sqrt(Math.pow(x - cx, 2) + Math.pow(y - cy, 2));
-                const force = 1 / Math.pow(dist, 0.42);
-                const dx = ratio * force * (x - cx) + (Math.random() - 0.5) * 2;
-                const dy = ratio * force * (y - cy) + (Math.random() - 0.5) * 2;
-                return { x: x - dx, y: y - dy };
+            const heart = new Heart();
+
+            function animate() {
+                ctx.fillStyle = 'black';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                heart.render(ctx, frame);
+                // 🔧 速度控制就在这里：用 SPEED 参数控制帧增量
+                frame += SPEED;
+                requestAnimationFrame(animate);
             }
 
-            render(ctx, frame) {
-                const ratio = 15 * curve(frame / 10 * Math.PI);
-                const haloRadius = 4 + 6 * (1 + curve(frame / 10 * Math.PI));
-                const haloNumber = Math.floor(3000 + 4000 * Math.pow(Math.abs(curve(frame / 10 * Math.PI)), 2));
+            // 窗口大小改变时重建心形点集，以适配新画布
+            window.addEventListener('resize', () => {
+                heart.build();
+            });
 
-                // 绘制光环（简化版）
-                ctx.fillStyle = HEART_COLOR;
-                ctx.globalAlpha = 0.3;
-                for (let i = 0; i < haloNumber; i++) {
-                    const t = Math.random() * 2 * Math.PI;
-                    const pos = heartFunction(t, -15);
-                    const dist = Math.sqrt(Math.pow(pos.x - canvas.width / 2, 2) + Math.pow(pos.y - canvas.height / 2, 2));
-                    const force = -1 / Math.pow(dist, 0.6);
-                    const dx = haloRadius * force * (pos.x - canvas.width / 2);
-                    const dy = haloRadius * force * (pos.y - canvas.height / 2);
-                    const x = pos.x - dx + (Math.random() - 0.5) * 120;
-                    const y = pos.y - dy + (Math.random() - 0.5) * 120;
-                    const size = Math.random() < 0.7 ? 1 : 2;
-                    ctx.fillRect(x, y, size, size);
-                }
-                ctx.globalAlpha = 1;
-
-                // 绘制主轮廓
-                for (let pt of this.points) {
-                    const pos = this.calcPosition(pt.x, pt.y, ratio);
-                    const size = Math.floor(Math.random() * 3) + 1;
-                    ctx.fillRect(pos.x, pos.y, size, size);
-                }
-
-                // 绘制边缘
-                ctx.globalAlpha = 0.8;
-                for (let pt of this.edgePoints) {
-                    const pos = this.calcPosition(pt.x, pt.y, ratio);
-                    const size = Math.floor(Math.random() * 2) + 1;
-                    ctx.fillRect(pos.x, pos.y, size, size);
-                }
-
-                // 绘制中心
-                ctx.globalAlpha = 0.9;
-                for (let pt of this.centerPoints) {
-                    const pos = this.calcPosition(pt.x, pt.y, ratio);
-                    const size = Math.floor(Math.random() * 2) + 1;
-                    ctx.fillRect(pos.x, pos.y, size, size);
-                }
-                ctx.globalAlpha = 1;
-            }
-        }
-
-        // 初始化
-        const heart = new Heart();
-
-        // 动画循环
-        function animate() {
-            ctx.fillStyle = 'black';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            heart.render(ctx, frame);
-            frame++;
-            requestAnimationFrame(animate);
-        }
-
-        animate();
+            animate();
+        })();
     </script>
 </body>
-</html> 
+</html>
